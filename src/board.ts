@@ -51,20 +51,43 @@ export const updateGrid = (grid: Uint8Array, nextGrid: Uint8Array, cols: number,
   }
 };
 
-export const drawBoard = (grid: Uint8Array, ctx: CanvasRenderingContext2D, cell: number, cols: number, rows: number) => {
-  // Fill the background.
-  ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, cols * cell, rows * cell);
+// Outside of the loop so we don't re-allocate it every frame
+let imageData: ImageData | null = null;
 
-  // Draw sand particles as white squares.
-  ctx.fillStyle = 'white';
-  for (let i = 0; i < grid.length; i++) {
-    if (grid[i] === 1) {
-      const c = i % cols; // Get column from index
-      const r = Math.floor(i / cols); // Get row from index
-      ctx.fillRect(c * cell, r * cell, cell, cell);
+export const drawBoard = (grid: Uint8Array, ctx: CanvasRenderingContext2D, cell: number, cols: number, rows: number) => {
+  const width = cols * cell;
+  const height = rows * cell;
+
+  // Initialize the buffer once
+  if (!imageData) {
+    imageData = ctx.createImageData(width, height);
+  }
+
+  const data = imageData.data;
+
+  // Iterate through every screen pixel
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      // Find which grid cell this screen pixel belongs to
+      const gridC = Math.floor(x / cell);
+      const gridR = Math.floor(y / cell);
+      const gridIndex = gridR * cols + gridC;
+
+      const pixelIndex = (y * width + x) * 4;
+      const isSand = grid[gridIndex] === 1;
+
+      // Set RGBA values
+      // If sand: White (255, 255, 255). If empty: Black (0, 0, 0)
+      const color = isSand ? 255 : 0;
+      data[pixelIndex] = color;     // Red
+      data[pixelIndex + 1] = color; // Green
+      data[pixelIndex + 2] = color; // Blue
+      data[pixelIndex + 3] = 255;   // Alpha (Always fully opaque)
     }
   }
+
+  // Send the entire pixel buffer to the canvas in one call
+  ctx.putImageData(imageData, 0, 0);
 };
 
 export const setupBoard = (canvas: HTMLCanvasElement) => {
