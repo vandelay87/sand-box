@@ -3,9 +3,11 @@ import { setClickHandler } from "./handlers";
 export const createGrid = (cols: number, rows: number): number[][] =>
   Array.from({ length: cols }, () => new Array(rows).fill(0));
 
-export const updateGrid = (grid: number[][], cols: number, rows: number): number[][] => {
-  // Start with a fresh grid for the next frame. This keeps the step pure.
-  let nextGrid = createGrid(cols, rows);
+export const updateGrid = (grid: number[][], nextGrid: number[][], cols: number, rows: number) => {
+  // Clear the nextGrid so it's ready for new data
+  for (let c = 0; c < cols; c++) {
+    nextGrid[c].fill(0);
+  }
 
   // Walk every column and row in the grid.
   for (let c = 0; c < cols; c++) {
@@ -48,7 +50,6 @@ export const updateGrid = (grid: number[][], cols: number, rows: number): number
       }
     }
   }
-  return nextGrid;
 };
 
 export const drawBoard = (grid: number[][], ctx: CanvasRenderingContext2D, cell: number, cols: number, rows: number) => {
@@ -79,6 +80,7 @@ export const setupBoard = (canvas: HTMLCanvasElement) => {
 
   // Initialise the grid.
   let grid = createGrid(cols, rows);
+  let nextGrid = createGrid(cols, rows);
 
   // Attach the mouse logic
   setClickHandler(canvas, (c, r) => {
@@ -92,8 +94,14 @@ export const setupBoard = (canvas: HTMLCanvasElement) => {
 
   // Start the game loop.
   const loop = () => {
-    grid = updateGrid(grid, cols, rows);
-    drawBoard(grid, ctx, CELL, cols, rows);
+    updateGrid(grid, nextGrid, cols, rows);
+    drawBoard(nextGrid, ctx, CELL, cols, rows);
+
+    // The nextGrid becomes the current grid for the next frame
+    let temp = grid;
+    grid = nextGrid;
+    nextGrid = temp;
+
     requestAnimationFrame(loop);
   };
 
