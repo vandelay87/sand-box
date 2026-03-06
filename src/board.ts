@@ -1,9 +1,9 @@
 import { setClickHandler } from "./handlers";
 
-export const createGrid = (cols: number, rows: number): Uint8Array =>
+const createGrid = (cols: number, rows: number): Uint8Array =>
   new Uint8Array(cols * rows);
 
-export const updateGrid = (grid: Uint8Array, nextGrid: Uint8Array, cols: number, rows: number, bounds: { minC: number; maxC: number; minR: number; maxR: number }) => {
+const updateGrid = (grid: Uint8Array, nextGrid: Uint8Array, cols: number, rows: number, bounds: { minC: number; maxC: number; minR: number; maxR: number }) => {
   // Clear the nextGrid so it's ready for new data
   nextGrid.fill(0);
 
@@ -64,50 +64,37 @@ export const updateGrid = (grid: Uint8Array, nextGrid: Uint8Array, cols: number,
   return { minC: nextMinC, maxC: nextMaxC, minR: nextMinR, maxR: nextMaxR };
 };
 
-// Outside of the loop so we don't re-allocate it every frame
-let imageData: ImageData | null = null;
+const drawBoard = (grid: Uint8Array, ctx: CanvasRenderingContext2D, cell: number, cols: number, rows: number) => {
+  // Clear the screen
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, cols * cell, rows * cell);
 
-export const drawBoard = (grid: Uint8Array, ctx: CanvasRenderingContext2D, cell: number, cols: number, rows: number) => {
-  const width = cols * cell;
-  const height = rows * cell;
+  // Draw the sand
+  ctx.fillStyle = "white";
 
-  // Initialize the buffer once
-  if (!imageData) {
-    imageData = ctx.createImageData(width, height);
-  }
-
-  const data = imageData.data;
-
-  // Iterate through every screen pixel
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      // Find which grid cell this screen pixel belongs to
-      const gridC = Math.floor(x / cell);
-      const gridR = Math.floor(y / cell);
-      const gridIndex = gridR * cols + gridC;
-
-      const pixelIndex = (y * width + x) * 4;
-      const isSand = grid[gridIndex] === 1;
-
-      // Set RGBA values
-      // If sand: White (255, 255, 255). If empty: Black (0, 0, 0)
-      const color = isSand ? 255 : 0;
-      data[pixelIndex] = color;     // Red
-      data[pixelIndex + 1] = color; // Green
-      data[pixelIndex + 2] = color; // Blue
-      data[pixelIndex + 3] = 255;   // Alpha (Always fully opaque)
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (grid[r * cols + c] === 1) {
+        // We use fillRect here because it's actually very fast
+        // when only drawing the ACTIVE sand grains.
+        ctx.fillRect(c * cell, r * cell, cell, cell);
+      }
     }
   }
-
-  // Send the entire pixel buffer to the canvas in one call
-  ctx.putImageData(imageData, 0, 0);
 };
 
 export const setupBoard = (canvas: HTMLCanvasElement) => {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  const CELL = 10;
+  // Get the actual size the canvas is being displayed at
+  const rect = canvas.getBoundingClientRect();
+
+  // Set the internal resolution to match the display size
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+
+  const CELL = 6;
   const cols = Math.floor(canvas.width / CELL);
   const rows = Math.floor(canvas.height / CELL);
 
@@ -117,25 +104,26 @@ export const setupBoard = (canvas: HTMLCanvasElement) => {
   let currentBounds = { minC: 0, maxC: cols - 1, minR: 0, maxR: rows - 1 };
 
   // Attach the mouse logic
-  setClickHandler(canvas, (c, r) => {
-    // Helper to set a grain using 1D index math
-    const setSand = (col: number, row: number) => {
-      if (col >= 0 && col < cols && row >= 0 && row < rows) {
-        grid[row * cols + col] = 1;
+  setClickHandler(canvas, CELL, (c, r) => {
+    const BRUSH_SIZE = 6;
+    const half = Math.floor(BRUSH_SIZE / 2);
+
+    // Loop to fill a square area around the mouse click
+    for (let offsetR = 0; offsetR < BRUSH_SIZE; offsetR++) {
+      for (let offsetC = 0; offsetC < BRUSH_SIZE; offsetC++) {
+        // SHIFT the target: Mouse pos + current loop index - half of brush size
+        const targetC = c + offsetC - half;
+        const targetR = r + offsetR - half;
+
+        // Only place sand if we are within the actual grid boundaries
+        if (targetC >= 0 && targetC < cols && targetR >= 0 && targetR < rows) {
+          grid[targetR * cols + targetC] = 1;
+        }
       }
-    };
+    }
 
-    setSand(c, r);
-    setSand(c + 1, r);
-    setSand(c, r + 1);
-    setSand(c + 1, r + 1);
-
-    // "Wake up" the simulation area when the user clicks
-    // We expand the current bounds to include the click area
-    currentBounds.minC = Math.min(currentBounds.minC, c);
-    currentBounds.maxC = Math.max(currentBounds.maxC, c + 1);
-    currentBounds.minR = Math.min(currentBounds.minR, r);
-    currentBounds.maxR = Math.max(currentBounds.maxR, r + 1);
+    // Tell the engine to check the whole screen next frame.
+    currentBounds = { minC: 0, maxC: cols - 1, minR: 0, maxR: rows - 1 };
   });
 
   // Start the game loop.
