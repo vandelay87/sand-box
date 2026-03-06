@@ -1,71 +1,68 @@
 import { setClickHandler } from "./handlers";
 
-export const createGrid = (cols: number, rows: number): number[][] =>
-  Array.from({ length: cols }, () => new Array(rows).fill(0));
+export const createGrid = (cols: number, rows: number): Uint8Array =>
+  new Uint8Array(cols * rows);
 
-export const updateGrid = (grid: number[][], nextGrid: number[][], cols: number, rows: number) => {
+export const updateGrid = (grid: Uint8Array, nextGrid: Uint8Array, cols: number, rows: number) => {
   // Clear the nextGrid so it's ready for new data
-  for (let c = 0; c < cols; c++) {
-    nextGrid[c].fill(0);
-  }
+  nextGrid.fill(0);
 
   // Walk every column and row in the grid.
   for (let c = 0; c < cols; c++) {
     for (let r = 0; r < rows; r++) {
-      let state = grid[c][r];
+      const i = r * cols + c;
+      let state = grid[i];
 
       // Only process sand cells.
       if (state === 1) {
         // If the particle is already on the bottom row, it can't fall further.
         if (r === rows - 1) {
-          nextGrid[c][r] = 1;
+          nextGrid[i] = 1;
           continue;
         }
 
         // Look at the cell below in the original grid.
-        let below = grid[c][r + 1];
+        const below = (r + 1) * cols + c;
 
         // Choose a random horizontal preference when the cell below is blocked.
         // dir === 1 means prefer moving to the right-down diagonal, dir === -1 prefer left-down.
-        let dir = Math.random() < 0.5 ? 1 : -1;
+        const dir = Math.random() < 0.5 ? 1 : -1;
 
-        // belowA is the preferred diagonal (c + dir, r + 1) if it's inside bounds; otherwise -1.
-        let belowA = (c + dir >= 0 && c + dir < cols) ? grid[c + dir][r + 1] : -1;
-        // belowB is the opposite diagonal (c - dir, r + 1) used as a fallback; -1 if out-of-bounds.
-        let belowB = (c - dir >= 0 && c - dir < cols) ? grid[c - dir][r + 1] : -1;
+        // diagA is the preferred diagonal (c + dir, r + 1) if it's inside bounds; otherwise -1.
+        const diagA = (r + 1) * cols + (c + dir);
+        // diagB is the opposite diagonal (c - dir, r + 1) used as a fallback; -1 if out-of-bounds.
+        const diagB = (r + 1) * cols + (c - dir);
 
-        if (below === 0) {
+        if (grid[below] === 0) {
           // The cell below is free: fall straight down.
-          nextGrid[c][r + 1] = 1;
-        } else if (belowA === 0) {
+          nextGrid[below] = 1;
+        } else if (c + dir >= 0 && c + dir < cols && grid[diagA] === 0) {
           // Preferred diagonal is free: move there.
-          nextGrid[c + dir][r + 1] = 1;
-        } else if (belowB === 0) {
+          nextGrid[diagA] = 1;
+        } else if (c - dir >= 0 && c - dir < cols && grid[diagB] === 0) {
           // Fallback diagonal is free: move there.
-          nextGrid[c - dir][r + 1] = 1;
+          nextGrid[diagB] = 1;
         } else {
           // No available moves: the particle remains in place for this frame.
-          nextGrid[c][r] = 1;
+          nextGrid[i] = 1;
         }
       }
     }
   }
 };
 
-export const drawBoard = (grid: number[][], ctx: CanvasRenderingContext2D, cell: number, cols: number, rows: number) => {
+export const drawBoard = (grid: Uint8Array, ctx: CanvasRenderingContext2D, cell: number, cols: number, rows: number) => {
   // Fill the background.
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, cols * cell, rows * cell);
 
   // Draw sand particles as white squares.
   ctx.fillStyle = 'white';
-  for (let c = 0; c < cols; c++) {
-    for (let r = 0; r < rows; r++) {
-      // Only draw occupied cells.
-      if (grid[c][r] === 1) {
-        // Draw a single cell at (c, r) scaled by cell size.
-        ctx.fillRect(c * cell, r * cell, cell, cell);
-      }
+  for (let i = 0; i < grid.length; i++) {
+    if (grid[i] === 1) {
+      const c = i % cols; // Get column from index
+      const r = Math.floor(i / cols); // Get row from index
+      ctx.fillRect(c * cell, r * cell, cell, cell);
     }
   }
 };
@@ -75,8 +72,8 @@ export const setupBoard = (canvas: HTMLCanvasElement) => {
   if (!ctx) return;
 
   const CELL = 10;
-  const cols = canvas.width / CELL;
-  const rows = canvas.height / CELL;
+  const cols = Math.floor(canvas.width / CELL);
+  const rows = Math.floor(canvas.height / CELL);
 
   // Initialise the grid.
   let grid = createGrid(cols, rows);
@@ -84,12 +81,17 @@ export const setupBoard = (canvas: HTMLCanvasElement) => {
 
   // Attach the mouse logic
   setClickHandler(canvas, (c, r) => {
-    if (c >= 0 && c < cols && r >= 0 && r < rows) {
-      grid[c][r] = 1;
-      // Add a 2x2 blob instead of a single point.
-      if (c + 1 < cols) grid[c + 1][r] = 1;
-      if (r + 1 < rows) grid[c][r + 1] = 1;
-    }
+    // Helper to set a grain using 1D index math
+    const setSand = (col: number, row: number) => {
+      if (col >= 0 && col < cols && row >= 0 && row < rows) {
+        grid[row * cols + col] = 1;
+      }
+    };
+
+    setSand(c, r);
+    setSand(c + 1, r);
+    setSand(c, r + 1);
+    setSand(c + 1, r + 1);
   });
 
   // Start the game loop.
