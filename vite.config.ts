@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  base: '/sand-box/',
+  base: '/apps/sand-box/',
   build: {
     outDir: 'dist',
   }
