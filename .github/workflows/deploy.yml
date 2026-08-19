@@ -42,10 +42,12 @@ jobs:
           role-to-assume: arn:aws:iam::713881813802:role/sandbox-deploy
           aws-region: eu-west-2
 
-      - name: Deploy to S3 Sub-path
+      # TODO(subdomain-migration step 6): drop this exclude once the old
+      # apps/sand-box/ prefix is explicitly removed per the primary PRD.
+      - name: Deploy to S3
         if: github.ref == 'refs/heads/main'
-        run: aws s3 sync ./dist s3://${{ vars.AWS_S3_BUCKET_NAME }}/apps/sand-box --delete
+        run: aws s3 sync ./dist s3://${{ vars.AWS_S3_BUCKET_NAME }} --delete --exclude "apps/sand-box/*"
 
-      - name: Invalidate CloudFront Sub-path
+      - name: Invalidate CloudFront
         if: github.ref == 'refs/heads/main'
-        run: aws cloudfront create-invalidation --distribution-id ${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID }} --paths "/apps/sand-box/*"
+        run: aws cloudfront create-invalidation --distribution-id ${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
