@@ -2,7 +2,7 @@
 
 Interactive falling sand simulation built with TypeScript and the Canvas API. Click or drag to drop sand grains and watch them pile up with simple physics.
 
-[Live demo](https://akli.dev/apps/sand-box)
+[Live demo](https://sandbox.akli.dev)
 
 ## How it works
 
@@ -38,4 +38,4 @@ pnpm dev
 
 ## Deployment
 
-Deployed to AWS S3 at `/apps/sand-box/` under the same CloudFront distribution as [akli.dev](https://akli.dev). CI/CD runs via GitHub Actions on push to `main`.
+Deployed to its own dedicated CloudFront distribution at [sandbox.akli.dev](https://sandbox.akli.dev), backed by a dedicated S3 bucket. CI/CD runs via GitHub Actions on push to `main`.
